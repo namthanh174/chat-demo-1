@@ -20,23 +20,29 @@ export default function ChatRoom({ roomId, user }) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [notFound, setNotFound] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const bottomRef = useRef(null);
 
   // Load room and auto-join if needed
   useEffect(() => {
     async function loadRoom() {
-      const roomRef = doc(db, 'rooms', roomId);
-      const snap = await getDoc(roomRef);
-      if (!snap.exists()) {
-        setNotFound(true);
-        return;
-      }
-      const data = snap.data();
-      setRoom({ id: snap.id, ...data });
-      if (!data.members.includes(user.uid)) {
-        await updateDoc(roomRef, {
-          members: arrayUnion(user.uid),
-        });
+      try {
+        const roomRef = doc(db, 'rooms', roomId);
+        const snap = await getDoc(roomRef);
+        if (!snap.exists()) {
+          setNotFound(true);
+          return;
+        }
+        const data = snap.data();
+        setRoom({ id: snap.id, ...data });
+        if (!data.members.includes(user.uid)) {
+          await updateDoc(roomRef, { members: arrayUnion(user.uid) });
+        }
+      } catch (err) {
+        console.error('Failed to load room:', err);
+        setLoadError(err.code === 'permission-denied'
+          ? 'You do not have permission to access this room.'
+          : 'Failed to load room. Please try again.');
       }
     }
     loadRoom();
@@ -100,8 +106,19 @@ export default function ChatRoom({ roomId, user }) {
     );
   }
 
+  if (loadError) {
+    return (
+      <div style={styles.center}>
+        <p style={{ color: '#e53e3e', marginBottom: 16 }}>{loadError}</p>
+        <button style={styles.backBtn} onClick={() => (window.location.hash = '/')}>
+          ← Back to rooms
+        </button>
+      </div>
+    );
+  }
+
   if (!room) {
-    return <div style={styles.center}>Loading...</div>;
+    return <div style={styles.center}>Loading room...</div>;
   }
 
   return (
